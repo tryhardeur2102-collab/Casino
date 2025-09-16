@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🎡 Roulette de l'argent 🎡</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial, sans-serif;
+      background: linear-gradient(135deg, #ff6a00, #ee0979);
+      color: white;
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      margin-top: 10px;
+      background: #333;
+      border-radius: 50%;
+      max-width: 90%;
+    }
+    button {
+      margin-top: 20px;
+      padding: 20px 40px;
+      font-size: 24px;
+      font-weight: bold;
+      border: none;
+      border-radius: 15px;
+      background: gold;
+      cursor: pointer;
+      width: 80%;
+      max-width: 400px;
+    }
+    #cagnotte {
+      margin-top: 20px;
+      font-size: 28px;
+      font-weight: bold;
+    }
+    #shop {
+      margin-top: 30px;
+      background: rgba(0,0,0,0.4);
+      padding: 20px;
+      border-radius: 15px;
+    }
+    .item {
+      margin: 15px;
+      padding: 15px;
+      background: white;
+      color: black;
+      border-radius: 15px;
+      display: block;
+      font-size: 20px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    #inventory {
+      margin-top: 30px;
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      border-radius: 15px;
+    }
+    .ownedItem {
+      display: inline-block;
+      margin: 10px;
+      padding: 10px;
+      background: white;
+      color: black;
+      border-radius: 10px;
+      font-size: 18px;
+      cursor: pointer;
+    }
+    #equipped {
+      margin-top: 20px;
+      font-size: 22px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎡 Roulette de l'argent 🎡</h1>
+  <canvas id="roulette" width="400" height="400"></canvas>
+  <br>
+  <button onclick="spin()">🎲 TOURNER 🎲</button>
+  <div id="result"></div>
+  <div id="cagnotte">Cagnotte : 0€</div>
+
+  <div id="shop">
+    <h2>🛍️ Boutique</h2>
+    <div class="item" onclick="buy('🎩 Skin Chapeau', 10)">🎩 Skin Chapeau - 10€</div>
+    <div class="item" onclick="buy('👟 Skin Chaussures', 20)">👟 Skin Chaussures - 20€</div>
+    <div class="item" onclick="buy('🎁 Cadeau mystère', 50)">🎁 Cadeau mystère - 50€</div>
+  </div>
+
+  <div id="inventory">
+    <h2>📦 Inventaire</h2>
+    <div id="ownedItems">Aucun objet pour l’instant</div>
+    <div id="equipped">Skin actif : Aucun</div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("roulette");
+    const ctx = canvas.getContext("2d");
+
+    const slices = [
+      { text: "+100€", value: 100, color: "gold", weight: 1 },
+      { text: "+30€", value: 30, color: "green", weight: 5 },
+      { text: "+20€", value: 20, color: "lightgreen", weight: 8 },
+      { text: "+10€", value: 10, color: "cyan", weight: 10 },
+      { text: "+5€", value: 5, color: "blue", weight: 10 },
+      { text: "+2€", value: 2, color: "purple", weight: 10 },
+      { text: "+1€", value: 1, color: "pink", weight: 10 },
+      { text: "-1€", value: -1, color: "orange", weight: 10 },
+      { text: "-5€", value: -5, color: "red", weight: 7 },
+      { text: "-30€", value: -30, color: "darkred", weight: 3 },
+    ];
+
+    let cagnotte = 0;
+    let angle = 0;
+    let spinning = false;
+    let ownedItems = [];
+    let equipped = "Aucun";
+
+    // 🔹 Charger les données sauvegardées
+    function loadData() {
+      const savedCagnotte = localStorage.getItem("cagnotte");
+      const savedItems = localStorage.getItem("ownedItems");
+      const savedEquipped = localStorage.getItem("equipped");
+
+      if (savedCagnotte) cagnotte = parseInt(savedCagnotte);
+      if (savedItems) ownedItems = JSON.parse(savedItems);
+      if (savedEquipped) equipped = savedEquipped;
+
+      updateUI();
+    }
+
+    // 🔹 Sauvegarder les données
+    function saveData() {
+      localStorage.setItem("cagnotte", cagnotte);
+      localStorage.setItem("ownedItems", JSON.stringify(ownedItems));
+      localStorage.setItem("equipped", equipped);
+    }
+
+    function drawRoulette() {
+      const radius = canvas.width / 2;
+      const cx = radius, cy = radius;
+      const totalWeight = slices.reduce((a, b) => a + b.weight, 0);
+      let startAngle = 0;
+
+      slices.forEach(slice => {
+        let sliceAngle = (slice.weight / totalWeight) * 2 * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, radius, startAngle, startAngle + sliceAngle);
+        ctx.fillStyle = slice.color;
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "black";
+        ctx.font = "16px Arial";
+        ctx.fillText(slice.text, 
+          cx + Math.cos(startAngle + sliceAngle / 2) * (radius / 2),
+          cy + Math.sin(startAngle + sliceAngle / 2) * (radius / 2)
+        );
+        startAngle += sliceAngle;
+      });
+
+      // Flèche en haut
+      ctx.beginPath();
+      ctx.moveTo(cx - 10, 10);
+      ctx.lineTo(cx + 10, 10);
+      ctx.lineTo(cx, 40);
+      ctx.fillStyle = "yellow";
+      ctx.fill();
+    }
+
+    function spin() {
+      if (spinning) return;
+      spinning = true;
+
+      let spinTime = 3000;
+      let start = null;
+      let spinAngle = Math.random() * 360 + 720; // min 2 tours
+      let finalAngle = (angle + spinAngle) % 360;
+
+      function animate(timestamp) {
+        if (!start) start = timestamp;
+        let progress = timestamp - start;
+        angle = (angle + (spinAngle / (spinTime / 20))) % 360;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate(angle * Math.PI / 180);
+        ctx.translate(-canvas.width / 2, -canvas.height / 2);
+        drawRoulette();
+        ctx.restore();
+
+        if (progress < spinTime) {
+          requestAnimationFrame(animate);
+        } else {
+          spinning = false;
+          stopAt(finalAngle);
+        }
+      }
+      requestAnimationFrame(animate);
+    }
+
+    function stopAt(finalAngle) {
+      const totalWeight = slices.reduce((a, b) => a + b.weight, 0);
+      let random = Math.random() * totalWeight;
+      let cumulative = 0;
+      let chosen = slices[0];
+
+      for (let slice of slices) {
+        cumulative += slice.weight;
+        if (random <= cumulative) {
+          chosen = slice;
+          break;
+        }
+      }
+
+      cagnotte += chosen.value;
+      updateUI();
+      saveData();
+      document.getElementById("result").innerText = "Résultat : " + chosen.text;
+    }
+
+    function buy(item, price) {
+      if (cagnotte >= price) {
+        cagnotte -= price;
+        ownedItems.push(item);
+        updateUI();
+        saveData();
+        alert("Tu as acheté : " + item + " !");
+      } else {
+        alert("Pas assez d'argent pour acheter " + item);
+      }
+    }
+
+    function updateInventory() {
+      let invDiv = document.getElementById("ownedItems");
+      if (ownedItems.length === 0) {
+        invDiv.innerText = "Aucun objet pour l’instant";
+      } else {
+        invDiv.innerHTML = "";
+        ownedItems.forEach(item => {
+          let div = document.createElement("div");
+          div.className = "ownedItem";
+          div.innerText = item;
+          div.onclick = () => equip(item);
+          invDiv.appendChild(div);
+        });
+      }
+      document.getElementById("equipped").innerText = "Skin actif : " + equipped;
+    }
+
+    function equip(item) {
+      equipped = item;
+      updateUI();
+      saveData();
+    }
+
+    function updateUI() {
+      document.getElementById("cagnotte").innerText = "Cagnotte : " + cagnotte + "€";
+      updateInventory();
+    }
+
+    drawRoulette();
+    loadData(); // Charger les données au démarrage
+  </script>
+</body>
+</html>
